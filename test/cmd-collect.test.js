@@ -107,8 +107,8 @@ test('cmd - collect - startup delay is not included', function (t) {
       return delta[0] * 1e3 + delta[1] * 1e-6
     }
     const now = process.hrtime()
-    while (deltams(now) < 100) { }
-    setTimeout(() => {}, 100)
+    while (deltams(now) < 150) { }
+    setTimeout(() => {}, 200)
   `)
   cmd.on('error', t.ifError.bind(t))
   cmd.on('ready', function () {
@@ -124,7 +124,7 @@ test('cmd - collect - startup delay is not included', function (t) {
       if (err) return t.ifError(err)
 
       const delay = output.processStat.map((stat) => stat.delay)
-      t.ok(delay[0] < 50, `startup delay was ${delay[0]}`)
+      t.ok(delay[0] < 100, `startup delay was ${delay[0]}`)
       t.end()
     })
   })
