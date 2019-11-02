@@ -35,7 +35,7 @@
     "pump": "^3.0.0",
     "pumpify": "^2.0.0",
     "semver": "^6.1.1",
-    "showdown": "^1.7.6",
+    "showdown": "1.9.0",
     "stream-template": "0.0.10",
     "streaming-json-stringify": "^3.1.0",
     "summary": "^1.0.0",
