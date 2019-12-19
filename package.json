@@ -39,7 +39,7 @@
     "stream-template": "0.0.10",
     "streaming-json-stringify": "^3.1.0",
     "summary": "^1.0.0",
-    "ttest": "^2.0.0"
+    "ttest": "2.1.0"
   },
   "devDependencies": {
     "cheerio": "^1.0.0-rc.2",
