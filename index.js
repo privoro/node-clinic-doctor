@@ -135,6 +135,111 @@ class ClinicDoctor extends events.EventEmitter {
     })
   }
 
+  async collectUntilResolves (args, callback) {
+    // run program, but inject the sampler
+    const logArgs = [
+      '-r', 'no-cluster.js',
+      '-r', 'sampler.js',
+      '--trace-events-enabled', '--trace-event-categories', 'v8'
+    ];
+
+    const stdio = ['inherit', 'inherit', 'inherit']
+
+    if (this.detectPort) {
+      logArgs.push('-r', 'detect-port.js')
+      stdio.push('pipe')
+    }
+
+    let NODE_PATH = path.join(__dirname, 'injects')
+    // use NODE_PATH to work around issues with spaces in inject path
+    if (process.env.NODE_PATH) {
+      NODE_PATH += `${path.delimiter}${process.env.NODE_PATH}`
+    }
+
+    const customEnv = {
+      // use NODE_PATH to work around issues with spaces in inject path
+      NODE_PATH,
+      NODE_OPTIONS: logArgs.join(' ') + (
+        process.env.NODE_OPTIONS ? ' ' + process.env.NODE_OPTIONS : ''
+      ),
+      NODE_CLINIC_DOCTOR_SAMPLE_INTERVAL: this.sampleInterval
+    }
+
+    if (this.path) {
+      customEnv.NODE_CLINIC_DOCTOR_DATA_PATH = this.path
+    }
+
+    const proc = spawn(args[0], args.slice(1), {
+      stdio,
+      env: Object.assign({}, process.env, customEnv)
+    });
+
+    if (this.detectPort) {
+      proc.stdio[3].once('data', (data) => {
+        this.emit('port', Number(data), proc, () => {
+          proc.stdio[3].destroy()
+        })
+      })
+    }
+
+    // get logging directory structure
+    const options = { identifier: proc.pid, path: this.path }
+    const paths = getLoggingPaths(options);
+
+
+
+    // relay SIGINT to process
+    process.once('SIGINT', /* istanbul ignore next: SIGINT is only emitted at Ctrl+C on windows */ () => {
+      // we cannot kill(SIGINT) on windows but it seems
+      // to relay the ctrl-c signal per default, so only do this
+      // if not windows
+      /* istanbul ignore next: platform specific */
+      if (os.platform() !== 'win32') proc.kill('SIGINT')
+    });
+
+    let resolver = null;
+    let rejector = null;
+    let donePromise = new Promise((resolve, reject) => {
+      resolver = resolve;
+      rejector = reject;
+    });
+    proc.once('exit', (code, signal) => {
+      // Windows exit code STATUS_CONTROL_C_EXIT 0xC000013A returns 3221225786
+      // if not caught. See https://msdn.microsoft.com/en-us/library/cc704588.aspx
+      /* istanbul ignore next */
+      if (code === 3221225786 && os.platform() === 'win32') signal = 'SIGINT'
+
+      // report if the process did not exit normally.
+      if (code !== 0 && signal !== 'SIGINT') {
+        /* istanbul ignore next */
+        if (code !== null) {
+          console.error(`process exited with exit code ${code}`);
+        } else {
+          /* istanbul ignore next */
+          rejector(new Error(`process exited by signal ${signal}`));
+        }
+      }
+
+      this.emit('analysing');
+
+      // move trace_event file to logging directory
+      joinTrace(
+        'node_trace.*.log', paths['/traceevent'],
+        function (err) {
+          /* istanbul ignore if: the node_trace file should always exists */
+          if (err) return rejector(err);
+          resolver(paths['/']);
+        }
+      )
+    });
+
+    await callback(proc);
+
+    proc.kill();
+
+    return donePromise;
+  }
+
   visualize (dataDirname, outputFilename, callback) {
     const fakeDataPath = path.join(__dirname, 'visualizer', 'data.json')
     const stylePath = path.join(__dirname, 'visualizer', 'style.css')
