@@ -187,16 +187,6 @@ class ClinicDoctor extends events.EventEmitter {
     const paths = getLoggingPaths(options);
 
 
-
-    // relay SIGINT to process
-    process.once('SIGINT', /* istanbul ignore next: SIGINT is only emitted at Ctrl+C on windows */ () => {
-      // we cannot kill(SIGINT) on windows but it seems
-      // to relay the ctrl-c signal per default, so only do this
-      // if not windows
-      /* istanbul ignore next: platform specific */
-      if (os.platform() !== 'win32') proc.kill('SIGINT')
-    });
-
     let resolver = null;
     let rejector = null;
     let donePromise = new Promise((resolve, reject) => {
@@ -210,13 +200,10 @@ class ClinicDoctor extends events.EventEmitter {
       if (code === 3221225786 && os.platform() === 'win32') signal = 'SIGINT'
 
       // report if the process did not exit normally.
-      if (code !== 0 && signal !== 'SIGINT') {
+      if (code !== 0) {
         /* istanbul ignore next */
         if (code !== null) {
           console.error(`process exited with exit code ${code}`);
-        } else {
-          /* istanbul ignore next */
-          rejector(new Error(`process exited by signal ${signal}`));
         }
       }
 
